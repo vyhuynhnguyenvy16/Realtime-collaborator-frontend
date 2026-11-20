@@ -6,14 +6,19 @@ mọi tài khoản, tài liệu, quyền truy cập và nội dung đều đi qu
 
 ## Người dùng làm được gì
 
-- Tạo tài khoản, đăng nhập. Phiên tự làm mới bằng refresh token.
-- Xem, tìm, lọc (của tôi, được chia sẻ), tạo, đổi tên, xoá tài liệu.
-- Soạn cùng lúc: chữ của người khác hiện ngay; thấy con trỏ, tên và vị trí của từng người trên lề phải.
-- Viết tiếp khi mất mạng; thay đổi tự gửi khi có mạng lại.
-- Chia sẻ cho người khác với quyền Biên tập hoặc Người xem, đổi quyền. Người xem chỉ đọc.
+Bản đang chạy: https://realtime-collaborator-frontend.vy-huynhnguyenvy-42b.workers.dev
+(API: https://api-production-0890c4ce.up.railway.app, deploy trên Railway).
 
-Những tính năng giao diện đã thiết kế nhưng còn chờ backend (lịch sử phiên bản, bình luận, chia sẻ bằng email, gỡ quyền…)
-được tắt bằng cờ `FEATURES` trong `src/config.js`. Danh sách đầy đủ và cách bổ sung ở **[API_GAPS.md](API_GAPS.md)**.
+- Tạo tài khoản với tên hiển thị, đổi tên trong menu tài khoản. Đăng xuất thu hồi phiên trên máy chủ.
+- Xem, tìm, lọc (của tôi, được chia sẻ), tạo, đổi tên, xoá tài liệu; rời tài liệu người khác chia sẻ.
+- Soạn cùng lúc: chữ của người khác hiện ngay; thấy con trỏ, tên và vị trí của từng người trên lề phải.
+- “Đã lưu” chỉ hiện khi máy chủ xác nhận đã ghi vào database.
+- Viết tiếp khi mất mạng; thay đổi tự gửi khi có mạng lại.
+- Chia sẻ bằng email với quyền Biên tập hoặc Người xem, đổi quyền, gỡ quyền. Thay đổi quyền và tên tài liệu
+  áp dụng ngay cho người đang mở; người bị gỡ quyền bị đóng tài liệu.
+- Lịch sử phiên bản: lưu bản có tên, xem lại bản cũ, khôi phục cho mọi người (bản hiện tại được giữ lại).
+
+Còn chờ backend: bình luận và nhật ký ai sửa gì. Xem **[API_GAPS.md](API_GAPS.md)**.
 
 ## Chạy trên máy
 
@@ -30,7 +35,7 @@ npm run dev               # http://localhost:5173
 Frontend là trang tĩnh sau khi build, deploy được lên Cloudflare Workers static assets:
 
 ```bash
-VITE_API_URL=https://api.ten-mien-cua-ban.com npm run build
+npm run build             # dùng VITE_API_URL trong .env.production (API trên Railway)
 npx cf auth login         # lần đầu
 npx cf deploy dist        # hoặc: npm run deploy
 ```
@@ -43,6 +48,7 @@ Hoặc kéo thả thư mục `dist` vào Cloudflare dashboard (Workers & Pages >
 | Đường dẫn | Vai trò |
 |---|---|
 | `src/config.js` | Địa chỉ API/WS từ biến môi trường; cờ `FEATURES` cho tính năng chờ API |
+| `.env.production` | Địa chỉ API production cho `npm run build` |
 | `src/lib/api.js` | Gọi REST, lưu token, tự refresh khi gặp 401 |
 | `src/lib/provider.js` | Provider Yjs cho gateway `/realtime` (giao thức `{ event, data }`), tự nối lại, gửi bù khi có mạng |
 | `src/views/` | Đăng nhập, danh sách tài liệu, editor (Tiptap + Yjs, tải sau), hộp thoại chia sẻ |
@@ -56,7 +62,11 @@ Gateway NestJS (`WsAdapter`) dùng frame JSON `{ event, data }`:
 | Chiều | event | data |
 |---|---|---|
 | client → server | `join` | `{ documentId, yjsClientId }` |
-| client → server | `update`, `awareness` | `{ documentId, update: number[] }` |
-| server → client | `sync` | `{ documentId, state: number[] }` (toàn bộ state, sau `join`) |
+| client → server | `update` | `{ documentId, update: number[], id }` |
+| client → server | `awareness` | `{ documentId, update: number[] }` |
+| server → client | `sync` | `{ documentId, state: number[], role }` (toàn bộ state, sau `join`) |
 | server → client | `update`, `awareness` | `{ documentId, update: number[] }` |
-| server → client | đóng `1008` | `Unauthorized` (token) hoặc `Forbidden` (không có quyền) |
+| server → client | `ack` | `{ documentId, id }` update đã được ghi vào database |
+| server → client | `role`, `meta` | quyền của tôi đổi / tên tài liệu đổi |
+| server → client | `error` | `{ message, id? }` ví dụ `ReadOnly`, `PersistFailed` |
+| server → client | đóng `1008` | `Unauthorized` (token) hoặc `Forbidden` (không có quyền / bị gỡ quyền / tài liệu bị xoá) |

@@ -23,7 +23,11 @@
     <summary class="me-link" aria-label="Tài khoản"><span class="av" data-me id="meAv">?</span></summary>
     <div class="me-pop">
       <b id="meName"></b><span id="meEmail"></span>
-      <div class="me-id"><small>Mã người dùng của bạn (gửi cho người muốn chia sẻ tài liệu với bạn)</small><code id="meId"></code><button class="btn-s" id="copyId" type="button">Sao chép mã</button></div>
+      <form class="me-name" id="meNameForm" novalidate>
+        <label for="meNameInput">Tên hiển thị</label>
+        <div class="row"><input id="meNameInput" maxlength="80" autocomplete="name"><button class="btn-s" id="meNameGo">Lưu</button></div>
+        <small>Mọi người thấy tên này cạnh con trỏ của bạn.</small>
+      </form>
       <button class="btn-s" id="logout" type="button">Đăng xuất</button>
     </div>
   </details>
@@ -45,6 +49,10 @@
         <label for="fEmail">Email</label>
         <input id="fEmail" type="email" autocomplete="email" inputmode="email" required>
         <p class="err" id="eEmail"></p>
+      </div>
+      <div class="field" id="nameField" hidden>
+        <label for="fName">Tên hiển thị <span class="opt">(không bắt buộc)</span></label>
+        <input id="fName" autocomplete="name" maxlength="80">
       </div>
       <div class="field">
         <label for="fPass">Mật khẩu</label>
@@ -93,6 +101,7 @@
     <div class="stack" id="avatars" aria-label="Người đang mở tài liệu"></div>
     <button class="btn btn-ghost hide-s" id="focusBtn" aria-pressed="false" title="Ẩn con trỏ của người khác. Lề phải vẫn cho biết ai đang ở đâu.">Ẩn con trỏ</button>
     <button class="btn btn-light hide-s" id="shareBtn" hidden>Chia sẻ</button>
+    <button class="tog" id="versionsBtn" aria-controls="panel" title="Lịch sử phiên bản"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 9a6.5 6.5 0 1 0 2-4.7M2.5 2.5v3h3M9 5.5V9l2.5 1.5"/></svg><span class="tl">Phiên bản</span></button>
     <button class="tog" id="panelBtn" aria-expanded="false" aria-controls="panel">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="6" r="3"/><path d="M2 15c.8-2.6 2.7-4 5-4s4.2 1.4 5 4M12.5 3.5a2.6 2.6 0 0 1 0 5M14.5 11.5c1 .6 1.7 1.9 2 3.5"/></svg><span class="tl">Người trong tài liệu</span><span class="cnt" id="panelCnt"></span>
     </button>
@@ -114,9 +123,23 @@
     </div>
   </main>
 
-  <aside id="panel" aria-label="Người trong tài liệu">
-    <div class="side-top"><h2 class="side-h">Đang mở tài liệu</h2><button class="close-x" id="panelClose" aria-label="Đóng khung">×</button></div>
-    <div class="pane"><div id="members"></div><p class="hint" id="membersHint"></p></div>
+  <aside id="panel" aria-label="Khung bên">
+    <div class="side-top">
+      <div class="ptabs" role="tablist" aria-label="Nội dung khung bên">
+        <button role="tab" id="tabPeople" aria-controls="panePeople" aria-selected="true">Người</button>
+        <button role="tab" id="tabVersions" aria-controls="paneVersions" aria-selected="false" tabindex="-1">Phiên bản</button>
+      </div>
+      <button class="close-x" id="panelClose" aria-label="Đóng khung">×</button>
+    </div>
+    <div class="pane" id="panePeople" role="tabpanel" aria-labelledby="tabPeople"><div id="members"></div><p class="hint" id="membersHint"></p></div>
+    <div class="pane" id="paneVersions" role="tabpanel" aria-labelledby="tabVersions" hidden>
+      <form class="ver-save" id="verSaveForm" novalidate>
+        <label for="verLabel">Lưu nội dung hiện tại thành một phiên bản</label>
+        <div class="row"><input id="verLabel" maxlength="120" placeholder="Tên phiên bản, ví dụ: Bản gửi thầy"><button class="btn-s btn-p" id="verSaveGo">Lưu</button></div>
+      </form>
+      <ul class="versions" id="verList" aria-live="polite"></ul>
+      <p class="hint">Hệ thống cũng tự lưu một bản sau mỗi đợt chỉnh sửa. Khôi phục một bản sẽ áp dụng cho mọi người và giữ lại bản hiện tại để bạn quay lại được.</p>
+    </div>
   </aside>
 </div>
 <div class="scrim" id="scrim"></div>
@@ -126,8 +149,7 @@
   <div class="wrap narrow"><div class="paper err-card" id="main-content-na">
     <div class="err-ill" aria-hidden="true"><svg viewBox="0 0 120 90"><rect x="22" y="10" width="62" height="76" rx="6" fill="var(--paper-2)" stroke="var(--line)" stroke-width="2"/><path d="M34 30h38M34 42h30" stroke="var(--line)" stroke-width="4" stroke-linecap="round"/><rect x="68" y="50" width="34" height="28" rx="5" fill="var(--paper)" stroke="var(--u3)" stroke-width="4"/><path d="M76 50v-7a9 9 0 0 1 18 0v7" fill="none" stroke="var(--u3)" stroke-width="4"/></svg></div>
     <h1>Không mở được tài liệu này</h1>
-    <!-- TODO(api): backend returns 403 for both "deleted" and "not shared"; split into 404 and 403. -->
-    <p>Tài liệu có thể đã bị xoá, hoặc chưa được chia sẻ với tài khoản <b id="naEmail"></b>. Nhờ chủ tài liệu chia sẻ cho bạn bằng mã người dùng trong menu tài khoản.</p>
+    <p id="naText">Tài liệu chưa được chia sẻ với tài khoản <b id="naEmail"></b>, hoặc bạn vừa bị gỡ quyền. Nhờ chủ tài liệu chia sẻ lại cho email này.</p>
     <div class="err-act"><a class="btn-wide" href="#/docs">Về danh sách tài liệu</a></div>
   </div></div>
 </section>
@@ -157,15 +179,14 @@
 
 <dialog class="dlg" id="shareDlg" aria-labelledby="shareH">
   <form method="dialog" class="dlg-head"><h2 id="shareH">Chia sẻ “<span id="shareDoc"></span>”</h2><button class="x" aria-label="Đóng">×</button></form>
-  <!-- TODO(api): share by email (needs POST /documents/:id/share { email } or GET /users/lookup?email=). -->
   <form class="invite" id="inviteForm" novalidate>
-    <label for="invId" class="sr">Mã người dùng</label>
-    <input id="invId" placeholder="Dán mã người dùng của người cần thêm" autocomplete="off" spellcheck="false">
+    <label for="invEmail" class="sr">Email người cần thêm</label>
+    <input id="invEmail" type="email" inputmode="email" placeholder="Email của người cần thêm" autocomplete="off" spellcheck="false">
     <label for="invRole" class="sr">Quyền</label>
     <select id="invRole"><option value="EDITOR">Biên tập</option><option value="VIEWER">Người xem</option></select>
     <button class="btn-s btn-p" id="invGo">Thêm</button>
   </form>
-  <p class="hint pad-x share-how">Người cần thêm mở menu tài khoản (avatar góc trên), bấm “Sao chép mã” rồi gửi cho bạn.</p>
+  <p class="hint pad-x share-how">Người được thêm cần có tài khoản Realtime với đúng email này.</p>
   <p class="err pad-x" id="invErr"></p>
   <h3 class="dlg-sub">Người có quyền truy cập</h3>
   <ul class="access" id="accessList"></ul>
@@ -173,6 +194,13 @@
     <p class="hint">Chỉ người trong danh sách mới mở được đường dẫn.</p>
     <button class="btn-s" id="copyLink" type="button">Sao chép đường dẫn</button>
   </div>
+</dialog>
+
+<dialog class="dlg wide" id="verDlg" aria-labelledby="verH">
+  <div class="dlg-head"><h2 id="verH">Phiên bản</h2><button type="button" class="x" data-close aria-label="Đóng">×</button></div>
+  <p class="hint pad-x" id="verMeta"></p>
+  <div class="ver-body"><div class="doc-body" id="verHost" aria-label="Nội dung phiên bản (chỉ xem)"></div></div>
+  <div class="dlg-foot"><button type="button" class="btn-s" data-close>Đóng</button><button type="button" class="btn-s btn-p" id="verRestore">Khôi phục bản này</button></div>
 </dialog>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>

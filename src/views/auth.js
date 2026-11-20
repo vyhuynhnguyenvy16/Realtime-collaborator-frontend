@@ -20,6 +20,7 @@ export function showAuth(m) {
   $('#authSubmit').textContent = m === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
   $('#fPass').autocomplete = m === 'login' ? 'current-password' : 'new-password';
   $('#passHint').hidden = m === 'login';
+  $('#nameField').hidden = m === 'login';
   $$('[data-auth]').forEach((a) => a.setAttribute('aria-selected', a.dataset.auth === m));
   clearErrors();
   setTimeout(() => $('#fEmail').focus(), 0);
@@ -48,8 +49,8 @@ async function onSubmit(e) {
   const btn = $('#authSubmit');
   setBusy(btn, true, mode === 'login' ? 'Đang đăng nhập…' : 'Đang tạo tài khoản…');
   try {
-    await (mode === 'login' ? login(email, password) : register(email, password));
-    $('#fPass').value = '';
+    await (mode === 'login' ? login(email, password) : register(email, password, $('#fName').value.trim()));
+    $('#fPass').value = ''; $('#fName').value = '';
     toast(mode === 'login' ? 'Đã đăng nhập' : 'Đã tạo tài khoản');
     const back = sessionStorage.getItem('rc-after-login');
     sessionStorage.removeItem('rc-after-login');

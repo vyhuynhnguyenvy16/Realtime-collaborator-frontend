@@ -18,11 +18,12 @@ export function colorFor(id = '') {
   return INKS[h % INKS.length];
 }
 
-// TODO(api): replace with the user's display name once User has a name field.
 export const nameFromEmail = (email = '') => {
   const local = email.split('@')[0] || email;
   return local.charAt(0).toUpperCase() + local.slice(1);
 };
+// The name the person chose, or the part of their email before @.
+export const displayName = (u) => (u?.name && u.name.trim()) || nameFromEmail(u?.email || '');
 export const initial = (s = '?') => s.trim().charAt(0).toUpperCase() || '?';
 
 export function relTime(iso) {

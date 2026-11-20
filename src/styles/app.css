@@ -481,12 +481,19 @@ aside .pane{padding:12px 16px}
 .focus .ProseMirror-yjs-selection{background:none!important}
 
 /* account menu with the user id used for sharing */
-.me-id{display:grid;gap:6px;margin:6px 0 10px;padding:10px;border-radius:var(--r-s);background:var(--paper-2)}
-.me-id small{color:var(--ink-2);font-size:12.5px;line-height:1.4}
-.me-id code{font:12px/1.4 ui-monospace,Menlo,monospace;overflow-wrap:anywhere;color:var(--ink)}
+.me-name{display:grid;gap:6px;margin:6px 0 10px;padding:10px;border-radius:var(--r-s);background:var(--paper-2)}
+.me-name label{font-size:13px;font-weight:600}
+.me-name .row{display:flex;gap:6px}
+.me-name input{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--paper);padding:0 10px;font:inherit;font-size:14px}
+.me-name .btn-s{height:40px}
+.me-name small{color:var(--ink-2);font-size:12.5px;line-height:1.4}
 .me-pop{min-width:280px;max-width:min(320px,calc(100vw - 24px))}
 .me-pop .btn-s{display:grid;place-items:center;height:44px}
-.access small[title]{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;overflow-wrap:anywhere}
+.access small{overflow-wrap:anywhere}
+.access .own{display:inline;padding:0 6px}
+.access .rm{width:40px;height:40px;font-size:20px;line-height:1;color:var(--ink-2)}
+.access .rm:hover{color:var(--u1)}
+.opt{font-weight:400;color:var(--ink-2)}
 .share-how{margin:8px 0 0}
 
 /* login: the form alone, centred */
@@ -509,3 +516,23 @@ aside .pane{padding:12px 16px}
   .app header .chip{width:44px;padding:0;justify-content:center;position:relative}
   .app header .chip .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 }
+
+/* ---- side panel tabs + version history ---- */
+.ptabs{display:flex;gap:4px}
+.ptabs [role=tab]{height:40px;padding:0 12px;border:0;border-radius:var(--r-s);background:none;font:inherit;font-size:14px;font-weight:600;color:var(--ink-2)}
+.ptabs [role=tab][aria-selected=true]{background:var(--paper-2);color:var(--ink)}
+.ver-save{display:grid;gap:6px;margin-bottom:14px}
+.ver-save label{font-size:13px;font-weight:600}
+.ver-save .row{display:flex;gap:6px}
+.ver-save input{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--paper);padding:0 10px;font:inherit;font-size:14px}
+.ver-save .btn-s{height:40px}
+.versions{list-style:none;margin:0 0 12px;padding:0}
+.versions li+li{border-top:1px solid var(--line)}
+.versions button{display:grid;gap:2px;width:100%;padding:10px 6px;border:0;border-radius:var(--r-s);background:none;text-align:left;font:inherit;color:var(--ink)}
+.versions button:hover{background:var(--paper-2)}
+.versions b{font-size:14px}
+.versions small{font-size:12.5px;color:var(--ink-2)}
+.versions .auto b{font-weight:500;color:var(--ink-2)}
+.dlg.wide{width:min(760px,calc(100vw - 24px))}
+.ver-body{max-height:min(60vh,560px);overflow:auto;margin:0 22px;padding:18px 22px;border:1px solid var(--line);border-radius:var(--r-m);background:var(--paper)}
+#versionsBtn{margin-right:4px}

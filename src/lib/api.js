@@ -74,25 +74,43 @@ export async function request(path, { method = 'GET', body, auth = true, retry =
 /* ---- auth ---- */
 async function storeTokens(tokens) {
   save({ ...tokens });
-  const me = await request('/auth/me');           // { id, email }
+  const me = await request('/auth/me');           // { id, email, name }
   save({ ...tokens, user: me });
   return me;
 }
 export async function login(email, password) {
   return storeTokens(await request('/auth/login', { method: 'POST', body: { email, password }, auth: false }));
 }
-export async function register(email, password) {
-  return storeTokens(await request('/auth/register', { method: 'POST', body: { email, password }, auth: false }));
+export async function register(email, password, name) {
+  const body = { email, password, ...(name ? { name } : {}) };
+  return storeTokens(await request('/auth/register', { method: 'POST', body, auth: false }));
 }
-// TODO(api): POST /auth/logout to revoke the refresh token server-side.
-export function logout() { save(null); }
+// Revokes the refresh token on the server; the local session is cleared either way.
+export async function logout() {
+  try { if (session) await request('/auth/logout', { method: 'POST', retry: false }); } catch {}
+  save(null);
+}
+export async function updateProfile(name) {
+  const me = await request('/auth/me', { method: 'PATCH', body: { name } });
+  save({ ...session, user: me });
+  return me;
+}
 
 /* ---- documents ---- */
-export const listDocuments = () => request('/documents');
-export const getDocument = (id) => request(`/documents/${encodeURIComponent(id)}`);
+const doc = (id) => `/documents/${encodeURIComponent(id)}`;
+export const listDocuments = () => request('/documents');                 // [{ ..., role, owner }]
+export const getDocument = (id) => request(doc(id));                      // { ..., role, owner, accesses[{ user }] }
 export const createDocument = (title) => request('/documents', { method: 'POST', body: { title } });
-export const renameDocument = (id, title) => request(`/documents/${encodeURIComponent(id)}`, { method: 'PATCH', body: { title } });
-export const deleteDocument = (id) => request(`/documents/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const renameDocument = (id, title) => request(doc(id), { method: 'PATCH', body: { title } });
+export const deleteDocument = (id) => request(doc(id), { method: 'DELETE' });
 // Upserts DocumentAccess: also used to change an existing member's role.
-export const shareDocument = (id, userId, role) =>
-  request(`/documents/${encodeURIComponent(id)}/share`, { method: 'POST', body: { userId, role } });
+export const shareByEmail = (id, email, role) => request(`${doc(id)}/share`, { method: 'POST', body: { email, role } });
+export const setRole = (id, userId, role) => request(`${doc(id)}/share`, { method: 'POST', body: { userId, role } });
+// Owner removes someone; a member passes their own id to leave.
+export const removeAccess = (id, userId) => request(`${doc(id)}/access/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+
+/* ---- versions ---- */
+export const listVersions = (id) => request(`${doc(id)}/versions`);
+export const saveVersion = (id, label) => request(`${doc(id)}/versions`, { method: 'POST', body: label ? { label } : {} });
+export const getVersion = (id, vid) => request(`${doc(id)}/versions/${encodeURIComponent(vid)}`);
+export const restoreVersion = (id, vid) => request(`${doc(id)}/versions/${encodeURIComponent(vid)}/restore`, { method: 'POST' });

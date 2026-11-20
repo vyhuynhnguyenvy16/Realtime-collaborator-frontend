@@ -4,8 +4,8 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
-import { $, esc, colorFor, nameFromEmail, avatarHtml, toast } from '../lib/ui.js';
-import { getDocument, renameDocument, getSession } from '../lib/api.js';
+import { $, esc, colorFor, displayName, avatarHtml, toast, relTime, setBusy } from '../lib/ui.js';
+import { getDocument, renameDocument, getSession, listVersions, saveVersion, getVersion, restoreVersion } from '../lib/api.js';
 import { GatewayProvider } from '../lib/provider.js';
 import { openShare } from './share.js';
 
@@ -19,7 +19,25 @@ let panelOpen = pref('panel', false);
 
 export function initEditor({ go }) {
   nav = go;
-  $('#panelBtn').addEventListener('click', () => setPanel(!isPanelOpen()));
+  $('#panelBtn').addEventListener('click', () => {
+    if (isPanelOpen() && tab === 'people') return setPanel(false);
+    showTab('people'); setPanel(true);
+  });
+  $('#versionsBtn').addEventListener('click', () => {
+    if (isPanelOpen() && tab === 'versions') return setPanel(false);
+    showTab('versions'); setPanel(true);
+  });
+  $('#tabPeople').addEventListener('click', () => showTab('people'));
+  $('#tabVersions').addEventListener('click', () => showTab('versions'));
+  $('.ptabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    showTab(tab === 'people' ? 'versions' : 'people');
+    $(tab === 'people' ? '#tabPeople' : '#tabVersions').focus();
+  });
+  $('#verSaveForm').addEventListener('submit', onSaveVersion);
+  $('#verList').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) openVersion(b.dataset.v); });
+  $('#verRestore').addEventListener('click', onRestore);
+  $('#verDlg').addEventListener('close', () => { preview?.destroy(); preview = null; });
   $('#panelClose').addEventListener('click', () => { setPanel(false); $('#panelBtn').focus(); });
   $('#scrim').addEventListener('click', () => setPanel(false));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && mqS.matches) setPanel(false); });
@@ -35,7 +53,9 @@ export function initEditor({ go }) {
   $('#shareBtn').addEventListener('click', () => current && openShare(current.id, current.title, refreshAccess));
   $('#sync').addEventListener('click', () => {
     const s = provider?.status();
-    toast(!s ? '' : s.state === 'synced' ? 'Mọi thay đổi đã được gửi lên máy chủ'
+    toast(!s ? '' : s.state === 'synced' ? 'Mọi thay đổi đã được lưu trên máy chủ'
+      : s.state === 'error' ? 'Máy chủ chưa lưu được thay đổi gần nhất. Tải lại trang để đồng bộ lại.'
+      : s.state === 'sending' ? 'Đang chờ máy chủ xác nhận đã lưu'
       : s.state === 'offline' ? `Mất kết nối. ${s.pending ? 'Phần bạn vừa viết đang chờ, ' : 'Thay đổi '}sẽ tự gửi khi có mạng`
       : 'Đang kết nối tới máy chủ…');
   });
@@ -69,8 +89,9 @@ export async function openEditor(id) {
   if (token !== openToken) return;
   current = doc;
   const me = getSession().user;
-  role = doc.accesses.find((a) => a.userId === me.id)?.role || 'VIEWER';
+  role = doc.role || doc.accesses.find((a) => a.userId === me.id)?.role || 'VIEWER';
   paintMeta();
+  if (tab === 'versions') loadVersions();
 
   ydoc = new Y.Doc();
   provider = new GatewayProvider(id, ydoc, {
@@ -80,9 +101,17 @@ export async function openEditor(id) {
       if (reason === 'forbidden') { toast('Bạn không còn quyền mở tài liệu này.', { error: true }); nav('no-access'); }
       else { toast('Phiên đăng nhập đã hết. Hãy đăng nhập lại.', { error: true }); nav('login'); }
     },
+    onRole: (next) => {
+      if (!current || next === role) return;
+      const was = role; role = next;
+      editor?.setEditable(role !== 'VIEWER');
+      paintMeta();
+      if (was) toast(role === 'VIEWER' ? 'Bạn vừa được chuyển sang quyền Người xem.' : `Bạn vừa được cấp quyền ${ROLE[role]}. Giờ bạn sửa được tài liệu.`);
+    },
+    onTitle: (title) => { if (current && title !== current.title) { current.title = title; paintMeta(); } },
   });
 
-  const user = { id: me.id, name: nameFromEmail(me.email), color: colorFor(me.id) };
+  const user = { id: me.id, name: displayName(me), color: colorFor(me.id) };
   $('#editorHost').innerHTML = '';
   editor = new Editor({
     element: $('#editorHost'),
@@ -107,6 +136,8 @@ export function closeEditor() {
   ydoc?.destroy(); ydoc = null;
   current = null;
   endRename();
+  if ($('#verDlg').open) $('#verDlg').close();
+  versions = []; $('#verList').innerHTML = '';
 }
 
 async function refreshAccess() {
@@ -122,15 +153,16 @@ function paintMeta() {
   $('#titleBtn').disabled = !canRename;
   $('#titleBtn').title = canRename ? 'Đổi tên tài liệu' : '';
   $('#shareBtn').hidden = role !== 'OWNER';
+  $('#verSaveForm').hidden = role === 'VIEWER';
   $('#viewBanner').classList.toggle('on', role === 'VIEWER');
   $('#roleMeta').textContent = `Quyền của bạn: ${ROLE[role]}`;
   $('#membersMeta').textContent = `${current.accesses.length} người có quyền truy cập`;
 }
 
-const STATUS = { connecting: 'Đang kết nối…', synced: 'Đã lưu', sending: 'Đang lưu…', offline: 'Mất kết nối' };
+const STATUS = { connecting: 'Đang kết nối…', synced: 'Đã lưu', sending: 'Đang lưu…', offline: 'Mất kết nối', error: 'Chưa lưu được' };
 function paintStatus(s) {
   const chip = $('#sync');
-  chip.dataset.s = s.state === 'synced' ? 'synced' : s.state === 'sending' ? 'sending' : s.state === 'offline' ? 'offline' : 'reconnecting';
+  chip.dataset.s = s.state === 'synced' ? 'synced' : s.state === 'sending' ? 'sending' : s.state === 'offline' || s.state === 'error' ? 'offline' : 'reconnecting';
   $('#syncLbl').textContent = s.state === 'offline' && s.pending ? 'Mất kết nối · có thay đổi chờ gửi' : STATUS[s.state];
   $('#offBanner').classList.toggle('on', s.state === 'offline');
 }
@@ -145,7 +177,7 @@ function others() {
 function onPresence() {
   const list = others();
   const me = getSession()?.user;
-  const meUser = { name: nameFromEmail(me.email), color: colorFor(me.id) };
+  const meUser = { name: displayName(me), color: colorFor(me.id) };
   // Same person in two tabs shows once.
   const uniq = [...new Map(list.map((u) => [u.id, u])).values()];
   $('#avatars').innerHTML = [...uniq.slice(0, 4).map((u) => avatarHtml(u.name, u.color, `title="${esc(u.name)}"`)),
@@ -208,9 +240,10 @@ function setPanel(on) {
   syncPanel();
 }
 function syncPanel() {
-  const small = mqS.matches;
+  const small = mqS.matches, open = isPanelOpen();
   $('#app').classList.toggle('panel-closed', !small && !panelOpen);
-  $('#panelBtn').setAttribute('aria-expanded', isPanelOpen());
+  $('#panelBtn').setAttribute('aria-expanded', open && tab === 'people');
+  $('#versionsBtn').setAttribute('aria-expanded', open && tab === 'versions');
   $('#scrim').classList.toggle('on', small && $('#panel').classList.contains('open'));
   requestAnimationFrame(layoutMargin);
 }
@@ -232,4 +265,95 @@ async function submitRename(e) {
   current.title = title; paintMeta();
   try { await renameDocument(current.id, title); toast('Đã đổi tên tài liệu'); }
   catch (err) { current.title = old; paintMeta(); toast(err.message, { error: true }); }
+}
+
+/* ---------------- side panel tabs ---------------- */
+let tab = 'people';
+function showTab(next) {
+  tab = next;
+  const people = tab === 'people';
+  $('#tabPeople').setAttribute('aria-selected', people); $('#tabPeople').tabIndex = people ? 0 : -1;
+  $('#tabVersions').setAttribute('aria-selected', !people); $('#tabVersions').tabIndex = people ? -1 : 0;
+  $('#panePeople').hidden = !people; $('#paneVersions').hidden = people;
+  syncPanel();
+  if (!people) loadVersions();
+}
+
+/* ---------------- version history ---------------- */
+let versions = [], preview = null, previewId = null;
+const fmt = (iso) => new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+
+async function loadVersions() {
+  if (!current) return;
+  const id = current.id;
+  if (!versions.length) $('#verList').innerHTML = '<li class="hint">Đang tải…</li>';
+  try { const list = await listVersions(id); if (current?.id === id) { versions = list; renderVersions(); } }
+  catch (err) { $('#verList').innerHTML = `<li class="err">${esc(err.message)}</li>`; }
+}
+
+function renderVersions() {
+  if (!versions.length) {
+    $('#verList').innerHTML = '<li class="hint">Chưa có phiên bản nào. Bản đầu tiên sẽ được tự lưu khi tài liệu có thay đổi.</li>';
+    return;
+  }
+  $('#verList').innerHTML = versions.map((v) => {
+    const by = v.createdBy ? displayName(v.createdBy) : '';
+    const auto = !v.label;
+    return `<li class="${auto ? 'auto' : ''}"><button type="button" data-v="${esc(v.id)}">
+      <b>${esc(auto ? 'Tự động lưu' : v.label)}</b>
+      <small title="${esc(new Date(v.createdAt).toLocaleString('vi-VN'))}">${relTime(v.createdAt)}${by ? ` · ${esc(by)}` : ''}</small></button></li>`;
+  }).join('');
+}
+
+async function onSaveVersion(e) {
+  e.preventDefault();
+  if (!current) return;
+  const btn = $('#verSaveGo'), label = $('#verLabel').value.trim();
+  setBusy(btn, true, 'Đang lưu…');
+  try {
+    const v = await saveVersion(current.id, label);
+    $('#verLabel').value = '';
+    versions.unshift(v); renderVersions();
+    toast(`Đã lưu phiên bản “${v.label}”`);
+  } catch (err) { toast(err.message, { error: true }); }
+  finally { setBusy(btn, false); }
+}
+
+async function openVersion(vid) {
+  if (!current) return;
+  const v = versions.find((x) => x.id === vid);
+  previewId = vid;
+  $('#verH').textContent = v?.label || 'Bản tự động lưu';
+  $('#verMeta').textContent = v ? `Lưu lúc ${fmt(v.createdAt)}${v.createdBy ? ` bởi ${displayName(v.createdBy)}` : ''}. Đây là bản chỉ xem.` : '';
+  $('#verRestore').hidden = role === 'VIEWER';
+  $('#verHost').innerHTML = '<p class="ghost">Đang tải…</p>';
+  $('#verDlg').showModal();
+  try {
+    const data = await getVersion(current.id, vid);
+    if (previewId !== vid) return;
+    const vdoc = new Y.Doc();
+    Y.applyUpdate(vdoc, new Uint8Array(data.state));
+    preview?.destroy();
+    $('#verHost').innerHTML = '';
+    preview = new Editor({
+      element: $('#verHost'),
+      editable: false,
+      extensions: [StarterKit.configure({ undoRedo: false }), Collaboration.configure({ document: vdoc })],
+      editorProps: { attributes: { 'aria-readonly': 'true' } },
+    });
+    if (preview.isEmpty) $('#verHost').insertAdjacentHTML('afterbegin', '<p class="ghost">Phiên bản này trống.</p>');
+  } catch (err) { $('#verHost').innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+}
+
+async function onRestore() {
+  if (!current || !previewId) return;
+  const btn = $('#verRestore');
+  setBusy(btn, true, 'Đang khôi phục…');
+  try {
+    await restoreVersion(current.id, previewId);
+    $('#verDlg').close();
+    toast('Đã khôi phục. Mọi người đang mở tài liệu đều thấy bản này. Bản trước đó được lưu là “Trước khi khôi phục”.');
+    loadVersions();
+  } catch (err) { toast(err.message, { error: true }); }
+  finally { setBusy(btn, false); }
 }
