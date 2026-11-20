@@ -40,7 +40,7 @@ export async function showDocs() {
 
 function render() {
   if (loadErr) {
-    $('#drows').innerHTML = `<div class="empty-st"><b>Chưa tải được danh sách</b>${esc(loadErr)}<br><button class="btn-s btn-p" id="retryDocs">Thử lại</button></div>`;
+    $('#drows').innerHTML = `<div class="empty-st"><b>Chưa tải được danh sách</b>${esc(loadErr)}<br><button class="btn-s" id="retryDocs">Thử lại</button></div>`;
     $('#retryDocs').onclick = showDocs;
     return;
   }
@@ -49,9 +49,9 @@ function render() {
     d.title.toLowerCase().includes(q.toLowerCase()));
   if (!list.length) {
     $('#drows').innerHTML = `<div class="empty-st">${
-      q ? `<b>Không có tài liệu nào tên chứa “${esc(q)}”</b>Thử từ khác, hoặc tạo tài liệu mới với tên này.<br><button class="btn-s btn-p" data-create="${esc(q)}">Tạo “${esc(q)}”</button>`
+      q ? `<b>Không có tài liệu nào tên chứa “${esc(q)}”</b>Thử từ khác, hoặc tạo tài liệu mới với tên này.<br><button class="btn-s" data-create="${esc(q)}">Tạo “${esc(q)}”</button>`
       : filter === 'shared' ? `<b>Chưa ai chia sẻ tài liệu với bạn</b>Người muốn chia sẻ chỉ cần nhập email ${esc(getSession()?.user?.email || '')} của bạn.`
-      : '<b>Bạn chưa có tài liệu nào</b>Tạo tài liệu đầu tiên rồi mời nhóm cùng soạn.<br><button class="btn-s btn-p" data-create="">Tạo tài liệu</button>'}</div>`;
+      : '<b>Bạn chưa có tài liệu nào</b>Tạo tài liệu đầu tiên rồi mời nhóm cùng soạn.<br><button class="btn-s" data-create="">Tạo tài liệu</button>'}</div>`;
     return;
   }
   $('#drows').innerHTML = `<div class="drow-head" aria-hidden="true"><span>Tên</span><span class="c-role">Chủ sở hữu</span><span class="c-upd">Sửa lần cuối</span><span></span></div>` +

@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
-import { $, esc, colorFor, displayName, avatarHtml, toast, relTime, setBusy } from '../lib/ui.js';
+import { $, esc, colorFor, inkFor, inkHex, paintOf, displayName, avatarHtml, toast, relTime, setBusy } from '../lib/ui.js';
 import { getDocument, renameDocument, getSession, listVersions, saveVersion, getVersion, restoreVersion } from '../lib/api.js';
 import { GatewayProvider } from '../lib/provider.js';
 import { openShare } from './share.js';
@@ -111,7 +111,8 @@ export async function openEditor(id) {
     onTitle: (title) => { if (current && title !== current.title) { current.title = title; paintMeta(); } },
   });
 
-  const user = { id: me.id, name: displayName(me), color: colorFor(me.id) };
+  const ink = inkFor(me.id);
+  const user = { id: me.id, name: displayName(me), color: inkHex(ink), ink };
   $('#editorHost').innerHTML = '';
   editor = new Editor({
     element: $('#editorHost'),
@@ -120,7 +121,7 @@ export async function openEditor(id) {
       StarterKit.configure({ undoRedo: false }),   // Yjs keeps its own history
       Placeholder.configure({ placeholder: role === 'VIEWER' ? 'Tài liệu đang trống.' : 'Bắt đầu viết… Gõ # và dấu cách để tạo tiêu đề, - để tạo danh sách.' }),
       Collaboration.configure({ document: ydoc }),
-      CollaborationCaret.configure({ provider, user, render: renderCaret }),
+      CollaborationCaret.configure({ provider, user, render: renderCaret, selectionRender }),
     ],
     editorProps: { attributes: { 'aria-label': `Nội dung tài liệu ${doc.title}`, spellcheck: 'false' } },
   });
@@ -180,14 +181,19 @@ function onPresence() {
   const meUser = { name: displayName(me), color: colorFor(me.id) };
   // Same person in two tabs shows once.
   const uniq = [...new Map(list.map((u) => [u.id, u])).values()];
-  $('#avatars').innerHTML = [...uniq.slice(0, 4).map((u) => avatarHtml(u.name, u.color, `title="${esc(u.name)}"`)),
+  $('#avatars').innerHTML = [...uniq.slice(0, 4).map((u) => avatarHtml(u.name, paintOf(u), `title="${esc(u.name)}"`)),
     uniq.length > 4 ? `<span class="av more" title="${uniq.length - 4} người khác">+${uniq.length - 4}</span>` : '',
     avatarHtml(meUser.name, meUser.color, `data-me title="Bạn"`)].join('');
   $('#panelCnt').textContent = uniq.length || '';
   $('#members').innerHTML = [`<div class="member">${avatarHtml(meUser.name, meUser.color)}<div><b>${esc(meUser.name)} (bạn)</b><small>${ROLE[role] || ''}</small></div></div>`,
-    ...uniq.map((u) => `<div class="member">${avatarHtml(u.name, u.color)}<div><b>${esc(u.name)}</b><small>${u.hasCursor ? 'Đang ở trong tài liệu' : 'Đang xem'}</small></div></div>`)].join('');
+    ...uniq.map((u) => `<div class="member">${avatarHtml(u.name, paintOf(u))}<div><b>${esc(u.name)}</b><small>${u.hasCursor ? 'Đang ở trong tài liệu' : 'Đang xem'}</small></div></div>`)].join('');
   $('#membersHint').textContent = uniq.length ? '' : 'Chỉ có bạn đang mở tài liệu này. Gửi đường dẫn cho người đã được chia sẻ để cùng soạn.';
   requestAnimationFrame(layoutMargin);
+}
+
+// Selection tint uses the person's ink at 20% (DESIGN_RULES 3.4); works with CSS-variable colours.
+function selectionRender(user) {
+  return { nodeName: 'span', class: 'rc-sel', style: `--c:${paintOf(user)}`, 'data-user': user.name };
 }
 
 // Caret: name flag shows while the person is active, then shrinks to a dot.
@@ -195,7 +201,7 @@ function renderCaret(user) {
   const caret = document.createElement('span');
   caret.className = 'rc-caret fresh';
   caret.setAttribute('aria-hidden', 'true');   // names are not part of the text
-  caret.style.setProperty('--c', user.color);
+  caret.style.setProperty('--c', paintOf(user));
   caret.dataset.uid = user.id || '';
   caret.dataset.name = user.name || '';
   const flag = document.createElement('span');
@@ -217,12 +223,12 @@ function layoutMargin() {
     const k = Math.round(y / 40); seen[k] = (seen[k] || 0) + 1;
     const ty = Math.min(th, (y / H) * th + (seen[k] - 1) * 30);
     const name = c.dataset.name;
-    return `<button class="pin" style="--c:${c.style.getPropertyValue('--c')};top:${ty}px" data-y="${y}" aria-label="Tới chỗ ${esc(name)} đang ở">${esc(name.charAt(0).toUpperCase())}<span class="tip">${esc(name)}</span></button>`;
+    return `<button class="pin" style="--c:${c.style.getPropertyValue('--c')};transform:translateY(${ty}px)" data-y="${y}" aria-label="Tới chỗ ${esc(name)} đang ở">${esc(name.charAt(0).toUpperCase())}<span class="tip">${esc(name)}</span></button>`;
   }).join('');
   track.querySelectorAll('.pin').forEach((p) => p.remove());
   track.insertAdjacentHTML('beforeend', pins);
   const v = $('#view');
-  v.style.top = (scroller.scrollTop / H) * th + 'px';
+  v.style.transform = `translateY(${(scroller.scrollTop / H) * th}px)`;
   v.style.height = Math.max(18, (scroller.clientHeight / H) * th) + 'px';
 }
 function onTrackClick(e) {
@@ -296,7 +302,14 @@ function renderVersions() {
     $('#verList').innerHTML = '<li class="hint">Chưa có phiên bản nào. Bản đầu tiên sẽ được tự lưu khi tài liệu có thay đổi.</li>';
     return;
   }
-  $('#verList').innerHTML = versions.map((v) => {
+  // Auto-saves happen every few dozen keystrokes; keep named versions and at most one auto-save per 10 minutes.
+  let lastKept = Infinity;
+  const shown = versions.filter((v) => {
+    const t = new Date(v.createdAt).getTime();
+    if (v.label || lastKept - t >= 10 * 60 * 1000) { lastKept = t; return true; }
+    return false;
+  });
+  $('#verList').innerHTML = shown.map((v) => {
     const by = v.createdBy ? displayName(v.createdBy) : '';
     const auto = !v.label;
     return `<li class="${auto ? 'auto' : ''}"><button type="button" data-v="${esc(v.id)}">
