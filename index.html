@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Realtime Collaborator</title>
+<meta name="description" content="Soạn tài liệu cùng nhóm theo thời gian thực: thấy ai đang sửa ở đâu, biết chữ của bạn đã được lưu.">
+<meta name="theme-color" content="#2B3FD6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121845" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,600;7..72,700&display=swap" rel="stylesheet">
+</head>
+<body>
+<a class="skip" href="#main-content" id="skip">Bỏ qua tới nội dung chính</a>
+
+<!-- Top bar for the documents and error screens -->
+<header class="deskbar desk-ui" id="deskbar" hidden>
+  <a class="brand" href="#/docs"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="3" width="15" height="20" rx="2" fill="#fff"/><rect x="8" y="1" width="2.4" height="15" rx="1.2" fill="#FF7BA8"/><rect x="15" y="8" width="2.4" height="15" rx="1.2" fill="#4FD6A4"/><circle cx="9.2" cy="1.6" r="1.6" fill="#FF7BA8"/><circle cx="16.2" cy="8.6" r="1.6" fill="#4FD6A4"/></svg><span>Realtime</span></a>
+  <div class="grow"></div>
+  <details class="me-menu">
+    <summary class="me-link" aria-label="Tài khoản"><span class="av" data-me id="meAv">?</span></summary>
+    <div class="me-pop">
+      <b id="meName"></b><span id="meEmail"></span>
+      <div class="me-id"><small>Mã người dùng của bạn (gửi cho người muốn chia sẻ tài liệu với bạn)</small><code id="meId"></code><button class="btn-s" id="copyId" type="button">Sao chép mã</button></div>
+      <button class="btn-s" id="logout" type="button">Đăng xuất</button>
+    </div>
+  </details>
+</header>
+
+<div class="banner net-banner" id="netBanner" role="status" hidden></div>
+
+<!-- ============ Đăng nhập / Đăng ký ============ -->
+<section class="view auth" data-view="auth" hidden>
+  <div class="paper auth-card" id="main-content-auth">
+    <span class="brand brand-ink"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="3" width="15" height="20" rx="2" fill="currentColor"/><rect x="8" y="1" width="2.4" height="15" rx="1.2" fill="#C92A62"/><rect x="15" y="8" width="2.4" height="15" rx="1.2" fill="#0B7F57"/><circle cx="9.2" cy="1.6" r="1.6" fill="#C92A62"/><circle cx="16.2" cy="8.6" r="1.6" fill="#0B7F57"/></svg><span>Realtime</span></span>
+    <div class="seg" role="tablist" aria-label="Đăng nhập hoặc tạo tài khoản">
+      <a role="tab" href="#/login" data-auth="login">Đăng nhập</a>
+      <a role="tab" href="#/register" data-auth="register">Tạo tài khoản</a>
+    </div>
+    <h1 class="auth-h" id="authH">Mở lại tài liệu của bạn</h1>
+    <form id="authForm" novalidate>
+      <div class="field">
+        <label for="fEmail">Email</label>
+        <input id="fEmail" type="email" autocomplete="email" inputmode="email" required>
+        <p class="err" id="eEmail"></p>
+      </div>
+      <div class="field">
+        <label for="fPass">Mật khẩu</label>
+        <div class="pass"><input id="fPass" type="password" autocomplete="current-password" required><button type="button" class="ghost-s" id="togglePass" aria-pressed="false">Hiện</button></div>
+        <p class="hint" id="passHint" hidden>Ít nhất 6 ký tự.</p>
+        <p class="err" id="ePass"></p>
+      </div>
+      <p class="form-err" id="formErr" role="alert"></p>
+      <button class="btn-wide" id="authSubmit">Đăng nhập</button>
+    </form>
+  </div>
+</section>
+
+<!-- ============ Tài liệu của bạn ============ -->
+<section class="view screen" data-view="docs" hidden>
+  <div class="wrap" id="main-content-docs">
+    <div class="page-head row">
+      <h1>Tài liệu của bạn</h1>
+      <button class="btn btn-light" id="newDocBtn">Tạo tài liệu</button>
+    </div>
+    <div class="paper">
+      <div class="toolbar">
+        <div class="seg seg-paper" role="tablist" aria-label="Lọc tài liệu" id="docFilter">
+          <button role="tab" aria-selected="true" data-f="all">Tất cả</button>
+          <button role="tab" aria-selected="false" data-f="mine">Của tôi</button>
+          <button role="tab" aria-selected="false" data-f="shared">Được chia sẻ</button>
+        </div>
+        <label class="search"><span class="sr">Tìm tài liệu</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><input id="docSearch" type="search" placeholder="Tìm theo tên"></label>
+      </div>
+      <div class="drows" id="drows" role="list" aria-busy="true"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Editor ============ -->
+<div class="app view" id="app" data-view="editor" hidden>
+  <header class="desk-ui">
+    <a class="brand" href="#/docs" aria-label="Về danh sách tài liệu"><svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="3" width="15" height="20" rx="2" fill="#fff"/><rect x="8" y="1" width="2.4" height="15" rx="1.2" fill="#FF7BA8"/><rect x="15" y="8" width="2.4" height="15" rx="1.2" fill="#4FD6A4"/><circle cx="9.2" cy="1.6" r="1.6" fill="#FF7BA8"/><circle cx="16.2" cy="8.6" r="1.6" fill="#4FD6A4"/></svg><span>Realtime</span></a>
+    <div class="crumb"><a href="#/docs">Tài liệu của bạn</a><span aria-hidden="true">/</span>
+      <button class="title-btn" id="titleBtn" title="Đổi tên tài liệu"><b id="docTitle">…</b></button>
+      <form class="title-form" id="titleForm" hidden><label class="sr" for="titleInput">Tên tài liệu</label><input id="titleInput" maxlength="255"><button class="btn-s" type="submit">Lưu</button></form>
+    </div>
+    <div class="grow"></div>
+    <button class="chip" id="sync" data-s="connecting" aria-describedby="syncHelp"><span class="dot"></span><span class="lbl" id="syncLbl">Đang kết nối…</span></button>
+    <span class="sr" id="syncHelp">Trạng thái lưu. Bấm để xem chi tiết.</span>
+    <div class="stack" id="avatars" aria-label="Người đang mở tài liệu"></div>
+    <button class="btn btn-ghost hide-s" id="focusBtn" aria-pressed="false" title="Ẩn con trỏ của người khác. Lề phải vẫn cho biết ai đang ở đâu.">Ẩn con trỏ</button>
+    <button class="btn btn-light hide-s" id="shareBtn" hidden>Chia sẻ</button>
+    <button class="tog" id="panelBtn" aria-expanded="false" aria-controls="panel">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="6" r="3"/><path d="M2 15c.8-2.6 2.7-4 5-4s4.2 1.4 5 4M12.5 3.5a2.6 2.6 0 0 1 0 5M14.5 11.5c1 .6 1.7 1.9 2 3.5"/></svg><span class="tl">Người trong tài liệu</span><span class="cnt" id="panelCnt"></span>
+    </button>
+  </header>
+
+  <main>
+    <div class="sheet" id="sheet">
+      <div class="scroller" id="scroller">
+        <div class="page" id="page">
+          <div class="banner" id="offBanner" role="status"><span>Bạn đang ngoại tuyến. Cứ viết tiếp: thay đổi được giữ trên máy này và tự gửi khi có mạng. Đừng đóng tab trước lúc đó.</span></div>
+          <div class="banner" id="viewBanner" role="status"><span>Bạn đang xem. Chỉ người có quyền biên tập mới sửa được tài liệu này.</span></div>
+          <div class="meta"><span id="roleMeta"></span><span id="membersMeta"></span></div>
+          <div class="doc-body" id="editorHost" aria-label="Nội dung tài liệu"></div>
+        </div>
+      </div>
+      <div class="margin" id="margin" aria-label="Lề hiện diện: vị trí của mọi người trong tài liệu">
+        <div class="track" id="track"><div class="view-box" id="view"></div></div>
+      </div>
+    </div>
+  </main>
+
+  <aside id="panel" aria-label="Người trong tài liệu">
+    <div class="side-top"><h2 class="side-h">Đang mở tài liệu</h2><button class="close-x" id="panelClose" aria-label="Đóng khung">×</button></div>
+    <div class="pane"><div id="members"></div><p class="hint" id="membersHint"></p></div>
+  </aside>
+</div>
+<div class="scrim" id="scrim"></div>
+
+<!-- ============ Lỗi ============ -->
+<section class="view screen" data-view="no-access" hidden>
+  <div class="wrap narrow"><div class="paper err-card" id="main-content-na">
+    <div class="err-ill" aria-hidden="true"><svg viewBox="0 0 120 90"><rect x="22" y="10" width="62" height="76" rx="6" fill="var(--paper-2)" stroke="var(--line)" stroke-width="2"/><path d="M34 30h38M34 42h30" stroke="var(--line)" stroke-width="4" stroke-linecap="round"/><rect x="68" y="50" width="34" height="28" rx="5" fill="var(--paper)" stroke="var(--u3)" stroke-width="4"/><path d="M76 50v-7a9 9 0 0 1 18 0v7" fill="none" stroke="var(--u3)" stroke-width="4"/></svg></div>
+    <h1>Không mở được tài liệu này</h1>
+    <!-- TODO(api): backend returns 403 for both "deleted" and "not shared"; split into 404 and 403. -->
+    <p>Tài liệu có thể đã bị xoá, hoặc chưa được chia sẻ với tài khoản <b id="naEmail"></b>. Nhờ chủ tài liệu chia sẻ cho bạn bằng mã người dùng trong menu tài khoản.</p>
+    <div class="err-act"><a class="btn-wide" href="#/docs">Về danh sách tài liệu</a></div>
+  </div></div>
+</section>
+
+<section class="view screen" data-view="not-found" hidden>
+  <div class="wrap narrow"><div class="paper err-card" id="main-content-nf">
+    <h1>Không có trang này</h1>
+    <p>Đường dẫn có thể bị thiếu ký tự. Mở tài liệu từ danh sách của bạn.</p>
+    <div class="err-act"><a class="btn-wide" href="#/docs">Về danh sách tài liệu</a></div>
+  </div></div>
+</section>
+
+<!-- ============ Hộp thoại ============ -->
+<dialog class="dlg small" id="newDlg" aria-labelledby="newH">
+  <form id="newForm" novalidate>
+    <div class="dlg-head"><h2 id="newH">Tạo tài liệu</h2><button type="button" class="x" data-close aria-label="Đóng">×</button></div>
+    <div class="field pad-x"><label for="newTitle">Tên tài liệu</label><input id="newTitle" maxlength="255" placeholder="Ví dụ: Báo cáo nhóm"><p class="err" id="eNew"></p></div>
+    <div class="dlg-foot"><button type="button" class="btn-s" data-close>Huỷ</button><button class="btn-s btn-p" id="newGo">Tạo và mở</button></div>
+  </form>
+</dialog>
+
+<dialog class="dlg small" id="delDlg" aria-labelledby="delH">
+  <div class="dlg-head"><h2 id="delH">Xoá “<span id="delName"></span>”?</h2></div>
+  <p class="pad-x">Tài liệu và toàn bộ nội dung sẽ biến mất với mọi người được chia sẻ. Không thể hoàn tác.</p>
+  <div class="dlg-foot"><button class="btn-s" data-close>Giữ lại</button><button class="btn-s danger-fill" id="delGo">Xoá tài liệu</button></div>
+</dialog>
+
+<dialog class="dlg" id="shareDlg" aria-labelledby="shareH">
+  <form method="dialog" class="dlg-head"><h2 id="shareH">Chia sẻ “<span id="shareDoc"></span>”</h2><button class="x" aria-label="Đóng">×</button></form>
+  <!-- TODO(api): share by email (needs POST /documents/:id/share { email } or GET /users/lookup?email=). -->
+  <form class="invite" id="inviteForm" novalidate>
+    <label for="invId" class="sr">Mã người dùng</label>
+    <input id="invId" placeholder="Dán mã người dùng của người cần thêm" autocomplete="off" spellcheck="false">
+    <label for="invRole" class="sr">Quyền</label>
+    <select id="invRole"><option value="EDITOR">Biên tập</option><option value="VIEWER">Người xem</option></select>
+    <button class="btn-s btn-p" id="invGo">Thêm</button>
+  </form>
+  <p class="hint pad-x share-how">Người cần thêm mở menu tài khoản (avatar góc trên), bấm “Sao chép mã” rồi gửi cho bạn.</p>
+  <p class="err pad-x" id="invErr"></p>
+  <h3 class="dlg-sub">Người có quyền truy cập</h3>
+  <ul class="access" id="accessList"></ul>
+  <div class="dlg-foot">
+    <p class="hint">Chỉ người trong danh sách mới mở được đường dẫn.</p>
+    <button class="btn-s" id="copyLink" type="button">Sao chép đường dẫn</button>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
